@@ -58,6 +58,7 @@ class GameState(StatesGroup):
     # Админ функции
     admin_add_coins_id = State()
     admin_add_coins_amount = State()
+    admin_delete_user = State()
 
 # Коэффициенты для мин
 MINES_COEFFICIENTS = {
@@ -325,7 +326,8 @@ def get_profile_inline_keyboard(user_id):
         keyboard = InlineKeyboardMarkup(
             inline_keyboard=[
                 [InlineKeyboardButton(text="💰 +1000 монет", callback_data="add_1000_coins")],
-                [InlineKeyboardButton(text="💳 Начислить валюту по ID", callback_data="add_coins_by_id")]
+                [InlineKeyboardButton(text="💳 Начислить валюту по ID", callback_data="add_coins_by_id")],
+                [InlineKeyboardButton(text="🗑 Удалить пользователя", callback_data="delete_user")]
             ]
         )
         return keyboard
@@ -719,10 +721,9 @@ async def channel_triada_handler(message: Message, state: FSMContext):
             await message.answer(
                 f"🔒 <b>Для игры необходимо подписаться на наш канал!</b>\n\n"
                 f"📢 Канал: {SUBSCRIPTION_CHANNEL}",
-                ```python
-            reply_markup=get_subscription_keyboard()
-        )
-        return
+                reply_markup=get_subscription_keyboard()
+            )
+            return
 
         await state.set_state(GameState.channel_triada)
         await state.update_data(game_type="triada")
@@ -744,9 +745,9 @@ async def channel_darts_handler(message: Message, state: FSMContext):
             await message.answer(
                 f"🔒 <b>Для игры необходимо подписаться на наш канал!</b>\n\n"
                 f"📢 Канал: {SUBSCRIPTION_CHANNEL}",
-            reply_markup=get_subscription_keyboard()
-        )
-        return
+                reply_markup=get_subscription_keyboard()
+            )
+            return
 
         await state.set_state(GameState.channel_darts)
         await state.update_data(game_type="darts")
@@ -1171,19 +1172,23 @@ async def play_bowling_direct(message: Message, bet_amount: int, choice: str):
             update_game_stats(message.from_user.id, "Боулинг", win_amount)
 
             # Реферальный бонус
-            stats = get_user_stats(message.from_user.id)
-            if stats and stats['referrer_id']:
-                bonus = int(win_amount * 0.05)  # 5%
-                add_referral_bonus(stats['referrer_id'], bonus)
-                try:
-                    await bot.send_message(
-                        stats['referrer_id'],
-                        f"💰 <b>Реферальный бонус!</b>\n"
-                        f"👤 Ваш реферал выиграл в боулинг\n"
-                        f"🎁 Ваш бонус: {bonus} монет (5%)"
-                    )
-                except:
-                    pass
+            try:
+                stats = get_user_stats(message.from_user.id)
+                if stats and stats.get('referrer_id'):
+                    bonus = int(win_amount * 0.05)  # 5%
+                    if bonus > 0:
+                        add_referral_bonus(stats['referrer_id'], bonus)
+                        try:
+                            await bot.send_message(
+                                stats['referrer_id'],
+                                f"💰 <b>Реферальный бонус!</b>\n"
+                                f"👤 Ваш реферал выиграл в боулинг\n"
+                                f"🎁 Ваш бонус: {bonus} монет (5%)"
+                            )
+                        except:
+                            pass
+            except Exception as e:
+                print(f"Error processing referral bonus: {e}")
 
             result_text = f"🎉 <b>ПОБЕДА!</b>\n💰 Выигрыш: {win_amount} монет"
         else:
@@ -1256,19 +1261,23 @@ async def play_dice_duel_direct(message: Message, bet_amount: int, choice: str):
             update_game_stats(message.from_user.id, "Кубы (дуэль)", win_amount)
 
             # Реферальный бонус
-            stats = get_user_stats(message.from_user.id)
-            if stats and stats['referrer_id']:
-                bonus = int(win_amount * 0.05)  # 5%
-                add_referral_bonus(stats['referrer_id'], bonus)
-                try:
-                    await bot.send_message(
-                        stats['referrer_id'],
-                        f"💰 <b>Реферальный бонус!</b>\n"
-                        f"👤 Ваш реферал выиграл в кубы (дуэль)\n"
-                        f"🎁 Ваш бонус: {bonus} монет (5%)"
-                    )
-                except:
-                    pass
+            try:
+                stats = get_user_stats(message.from_user.id)
+                if stats and stats.get('referrer_id'):
+                    bonus = int(win_amount * 0.05)  # 5%
+                    if bonus > 0:
+                        add_referral_bonus(stats['referrer_id'], bonus)
+                        try:
+                            await bot.send_message(
+                                stats['referrer_id'],
+                                f"💰 <b>Реферальный бонус!</b>\n"
+                                f"👤 Ваш реферал выиграл в кубы (дуэль)\n"
+                                f"🎁 Ваш бонус: {bonus} монет (5%)"
+                            )
+                        except:
+                            pass
+            except Exception as e:
+                print(f"Error processing referral bonus: {e}")
 
             result_text = f"🎉 <b>ПОБЕДА!</b>\n💰 Выигрыш: {win_amount} монет"
         else:
@@ -2109,6 +2118,23 @@ async def add_coins_by_id_callback(callback: CallbackQuery, state: FSMContext):
     else:
         await callback.answer("❌ У вас нет доступа к этой функции!", show_alert=True)
 
+@router.callback_query(F.data == "delete_user")
+async def delete_user_callback(callback: CallbackQuery, state: FSMContext):
+    if callback.from_user.id == 6774136020:
+        await state.set_state(GameState.admin_delete_user)
+        await callback.message.answer(
+            "🗑 <b>Удаление пользователя</b>\n\n"
+            "⚠️ Введите ID пользователя для удаления:\n"
+            "❗ Пользователь будет полностью удален из базы данных!",
+            reply_markup=ReplyKeyboardMarkup(
+                keyboard=[[KeyboardButton(text="⬅️ Отмена")]],
+                resize_keyboard=True
+            )
+        )
+        await callback.answer()
+    else:
+        await callback.answer("❌ У вас нет доступа к этой функции!", show_alert=True)
+
 @router.message(GameState.admin_add_coins_id)
 async def admin_process_user_id(message: Message, state: FSMContext):
     if message.text == "⬅️ Отмена":
@@ -2167,6 +2193,53 @@ async def admin_process_amount(message: Message, state: FSMContext):
         )
     except ValueError:
         await message.answer("❌ Неверный формат суммы. Введите числовое значение:")
+
+@router.message(GameState.admin_delete_user)
+async def admin_delete_user_handler(message: Message, state: FSMContext):
+    if message.text == "⬅️ Отмена":
+        await state.set_state(GameState.profile)
+        await message.answer(
+            "❌ Операция отменена",
+            reply_markup=get_profile_keyboard(message.from_user.id)
+        )
+        return
+
+    try:
+        user_id = int(message.text)
+        
+        from db import delete_user
+        
+        # Проверяем существует ли пользователь
+        balance = get_balance(user_id)
+        if balance == 0:
+            # Проверяем через прямой запрос к базе
+            import sqlite3
+            conn = sqlite3.connect("casino.db")
+            c = conn.cursor()
+            c.execute("SELECT user_id FROM users WHERE user_id = ?", (user_id,))
+            exists = c.fetchone() is not None
+            conn.close()
+            
+            if not exists:
+                await message.answer(
+                    f"❌ Пользователь с ID {user_id} не найден в базе данных!",
+                    reply_markup=get_profile_keyboard(message.from_user.id)
+                )
+                return
+
+        # Удаляем пользователя
+        delete_user(user_id)
+
+        await state.set_state(GameState.profile)
+        await message.answer(
+            f"✅ <b>Пользователь удален!</b>\n\n"
+            f"👤 ID пользователя: {user_id}\n"
+            f"🗑 Пользователь полностью удален из базы данных\n"
+            f"📝 При следующем /start он будет считаться новым пользователем",
+            reply_markup=get_profile_keyboard(message.from_user.id)
+        )
+    except ValueError:
+        await message.answer("❌ Неверный формат ID. Введите числовой ID:")
 
 @router.callback_query(F.data == "main_menu")
 async def main_menu_callback(callback: CallbackQuery, state: FSMContext):
