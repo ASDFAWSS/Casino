@@ -3,47 +3,35 @@ import sqlite3
 def init_db():
     conn = sqlite3.connect("casino.db")
     c = conn.cursor()
+    
+    # Проверяем существующие столбцы
+    c.execute("PRAGMA table_info(users)")
+    existing_columns = [column[1] for column in c.fetchall()]
+    
+    # Создаем таблицу с базовой структурой если её нет
     c.execute('''CREATE TABLE IF NOT EXISTS users (
         user_id INTEGER PRIMARY KEY,
-        balance INTEGER DEFAULT 1000,
-        referrer_id INTEGER DEFAULT NULL,
-        registration_date TEXT DEFAULT CURRENT_TIMESTAMP,
-        total_games INTEGER DEFAULT 0,
-        total_winnings INTEGER DEFAULT 0,
-        biggest_win INTEGER DEFAULT 0,
-        favorite_game TEXT DEFAULT '',
-        favorite_game_count INTEGER DEFAULT 0
+        balance INTEGER DEFAULT 1000
     )''')
     
-    # Добавляем новые столбцы к существующим пользователям
-    try:
-        c.execute('ALTER TABLE users ADD COLUMN referrer_id INTEGER DEFAULT NULL')
-    except:
-        pass
-    try:
-        c.execute('ALTER TABLE users ADD COLUMN registration_date TEXT DEFAULT CURRENT_TIMESTAMP')
-    except:
-        pass
-    try:
-        c.execute('ALTER TABLE users ADD COLUMN total_games INTEGER DEFAULT 0')
-    except:
-        pass
-    try:
-        c.execute('ALTER TABLE users ADD COLUMN total_winnings INTEGER DEFAULT 0')
-    except:
-        pass
-    try:
-        c.execute('ALTER TABLE users ADD COLUMN biggest_win INTEGER DEFAULT 0')
-    except:
-        pass
-    try:
-        c.execute('ALTER TABLE users ADD COLUMN favorite_game TEXT DEFAULT ""')
-    except:
-        pass
-    try:
-        c.execute('ALTER TABLE users ADD COLUMN favorite_game_count INTEGER DEFAULT 0')
-    except:
-        pass
+    # Добавляем недостающие столбцы
+    columns_to_add = [
+        ('referrer_id', 'INTEGER DEFAULT NULL'),
+        ('registration_date', 'TEXT DEFAULT (datetime("now"))'),
+        ('total_games', 'INTEGER DEFAULT 0'),
+        ('total_winnings', 'INTEGER DEFAULT 0'),
+        ('biggest_win', 'INTEGER DEFAULT 0'),
+        ('favorite_game', 'TEXT DEFAULT ""'),
+        ('favorite_game_count', 'INTEGER DEFAULT 0')
+    ]
+    
+    for column_name, column_def in columns_to_add:
+        if column_name not in existing_columns:
+            try:
+                c.execute(f'ALTER TABLE users ADD COLUMN {column_name} {column_def}')
+                print(f"Added column: {column_name}")
+            except Exception as e:
+                print(f"Error adding column {column_name}: {e}")
     
     # Создаем таблицу для подсчета игр
     c.execute('''CREATE TABLE IF NOT EXISTS game_stats (
@@ -81,7 +69,16 @@ def update_balance(user_id, amount):
 def create_user_with_referrer(user_id, referrer_id=None):
     conn = sqlite3.connect("casino.db")
     c = conn.cursor()
-    c.execute("INSERT OR IGNORE INTO users (user_id, referrer_id, registration_date) VALUES (?, ?, datetime('now'))", (user_id, referrer_id))
+    try:
+        c.execute("INSERT OR IGNORE INTO users (user_id, referrer_id, registration_date) VALUES (?, ?, datetime('now'))", (user_id, referrer_id))
+    except sqlite3.OperationalError:
+        # Если столбец registration_date не существует, создаем пользователя без него
+        c.execute("INSERT OR IGNORE INTO users (user_id, referrer_id) VALUES (?, ?)", (user_id, referrer_id))
+        # Затем пытаемся обновить дату регистрации если столбец есть
+        try:
+            c.execute("UPDATE users SET registration_date = datetime('now') WHERE user_id = ? AND registration_date IS NULL", (user_id,))
+        except:
+            pass
     conn.commit()
     conn.close()
 
