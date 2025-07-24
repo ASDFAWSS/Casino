@@ -165,3 +165,22 @@ def get_referral_info(user_id):
 def add_referral_bonus(referrer_id, bonus_amount):
     """Добавляет бонус рефереру (5% от выигрыша реферала)"""
     update_balance(referrer_id, bonus_amount)
+
+def delete_user(user_id):
+    """Удаляет пользователя из базы данных"""
+    conn = sqlite3.connect("casino.db")
+    c = conn.cursor()
+    
+    # Удаляем из основной таблицы
+    c.execute("DELETE FROM users WHERE user_id = ?", (user_id,))
+    
+    # Удаляем статистику игр
+    c.execute("DELETE FROM game_stats WHERE user_id = ?", (user_id,))
+    
+    # Обнуляем реферера у тех, кто был приглашен этим пользователем
+    c.execute("UPDATE users SET referrer_id = NULL WHERE referrer_id = ?", (user_id,))
+    
+    conn.commit()
+    conn.close()
+    
+    return True
