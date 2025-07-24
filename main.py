@@ -397,11 +397,11 @@ async def start_handler(message: Message, state: FSMContext):
 
     balance = get_balance(message.from_user.id)
     await state.set_state(GameState.main_menu)
-    
+
     welcome_text = f"🎰 <b>Добро пожаловать в MoonCasino!</b>\n💰 Ваш баланс: <b>{balance}</b> монет"
     if referrer_id:
         welcome_text += f"\n\n🎁 Вы зарегистрировались по реферальной ссылке!"
-    
+
     await message.answer(welcome_text, reply_markup=get_start_keyboard())
 
 def get_channel_games_keyboard():
@@ -496,11 +496,11 @@ async def profile_handler(message: Message, state: FSMContext):
 @router.message(F.text == "Реферальная система")
 async def referral_handler(message: Message, state: FSMContext):
     from db import get_referral_info
-    
+
     referrals_count = get_referral_info(message.from_user.id)
     bot_username = (await bot.get_me()).username
     referral_link = f"https://t.me/{bot_username}?start=ref{message.from_user.id}"
-    
+
     await message.answer(
         f"👥 <b>Реферальная система</b>\n\n"
         f"💰 Вы получаете 5% с каждого выигрыша ваших рефералов!\n\n"
@@ -719,9 +719,10 @@ async def channel_triada_handler(message: Message, state: FSMContext):
             await message.answer(
                 f"🔒 <b>Для игры необходимо подписаться на наш канал!</b>\n\n"
                 f"📢 Канал: {SUBSCRIPTION_CHANNEL}",
-                reply_markup=get_subscription_keyboard()
-            )
-            return
+                ```python
+            reply_markup=get_subscription_keyboard()
+        )
+        return
 
         await state.set_state(GameState.channel_triada)
         await state.update_data(game_type="triada")
@@ -743,9 +744,9 @@ async def channel_darts_handler(message: Message, state: FSMContext):
             await message.answer(
                 f"🔒 <b>Для игры необходимо подписаться на наш канал!</b>\n\n"
                 f"📢 Канал: {SUBSCRIPTION_CHANNEL}",
-                reply_markup=get_subscription_keyboard()
-            )
-            return
+            reply_markup=get_subscription_keyboard()
+        )
+        return
 
         await state.set_state(GameState.channel_darts)
         await state.update_data(game_type="darts")
@@ -1898,6 +1899,13 @@ async def mines_callback(callback: CallbackQuery, state: FSMContext):
             current_coeff = MINES_COEFFICIENTS[mines_count][clicks_count - 1]
             win_amount = int(bet_amount * current_coeff)
             update_balance(callback.from_user.id, win_amount)
+            update_game_stats(callback.from_user.id, "Мины", win_amount)
+
+            # Реферальный бонус
+            stats = get_user_stats(callback.from_user.id)
+            if stats and stats['referrer_id']:
+                bonus = int(win_amount * 0.05)  # 5%
+                add_referral_bonus(stats['referrer_id'], bonus)
 
             await callback.message.edit_text(
                 f"💰 <b>Выигрыш забран!</b>\n"
@@ -1973,6 +1981,13 @@ async def tower_callback(callback: CallbackQuery, state: FSMContext):
             final_coeff = coeffs[current_level - 1] if current_level - 1 < len(coeffs) else coeffs[-1]
             win_amount = int(bet_amount * final_coeff)
             update_balance(callback.from_user.id, win_amount)
+            update_game_stats(callback.from_user.id, "Башня", win_amount)
+
+            # Реферальный бонус
+            stats = get_user_stats(callback.from_user.id)
+            if stats and stats['referrer_id']:
+                bonus = int(win_amount * 0.05)  # 5%
+                add_referral_bonus(stats['referrer_id'], bonus)
 
             await callback.message.edit_text(
                 f"💰 <b>Выигрыш забран!</b>\n"
@@ -2024,6 +2039,13 @@ async def tower_callback(callback: CallbackQuery, state: FSMContext):
         final_coeff = coeffs[-1]
         win_amount = int(bet_amount * final_coeff)
         update_balance(callback.from_user.id, win_amount)
+        update_game_stats(callback.from_user.id, "Башня", win_amount)
+
+        # Реферальный бонус
+        stats = get_user_stats(callback.from_user.id)
+        if stats and stats['referrer_id']:
+            bonus = int(win_amount * 0.05)  # 5%
+            add_referral_bonus(stats['referrer_id'], bonus)
 
         await callback.message.edit_text(
             f"🎉 <b>ПОЗДРАВЛЯЕМ! Вы достигли вершины башни!</b>\n"
